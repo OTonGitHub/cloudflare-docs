@@ -65,7 +65,7 @@ endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
 prefix: '/users/user-123'
 });
 
-````
+```
 </TypeScriptExample>
 
 **Throws**:
@@ -87,7 +87,7 @@ Unmount a previously mounted bucket.
 
 ```ts
 await sandbox.unmountBucket(mountPath: string): Promise<void>
-````
+```
 
 **Parameters**:
 
@@ -103,7 +103,7 @@ await sandbox.exec('python process.py');
 // Unmount
 await sandbox.unmountBucket('/data');
 
-````
+```
 </TypeScriptExample>
 
 :::note[Automatic cleanup]
@@ -125,7 +125,7 @@ interface MountBucketOptions {
 	prefix?: string;
 	s3fsOptions?: string[];
 }
-````
+```
 
 **Fields**:
 
@@ -197,3 +197,4 @@ Never hardcode credentials. Use Worker secrets or environment variables.
 - [Persistent storage tutorial](/sandbox/tutorials/persistent-storage/) - Example with R2
 - [Environment variables](/sandbox/configuration/environment-variables/) - Credential configuration
 - [R2 documentation](/r2/) - Learn about Cloudflare R2
+```

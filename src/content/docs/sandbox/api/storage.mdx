@@ -28,6 +28,7 @@ await sandbox.mountBucket(
 ```
 
 **Parameters**:
+
 - `bucket` - Bucket name (e.g., `"my-r2-bucket"`)
 - `mountPath` - Local filesystem path to mount at (e.g., `"/data"`)
 - `options` - Mount configuration (see [`MountBucketOptions`](#mountbucketoptions))
@@ -45,19 +46,26 @@ await sandbox.writeFile('/data/results.json', JSON.stringify(data));
 
 // Mount with explicit credentials
 await sandbox.mountBucket('my-bucket', '/storage', {
-	endpoint: 'https://s3.amazonaws.com',
-	credentials: {
-		accessKeyId: env.AWS_ACCESS_KEY_ID,
-		secretAccessKey: env.AWS_SECRET_ACCESS_KEY
-	}
+endpoint: 'https://s3.amazonaws.com',
+credentials: {
+accessKeyId: env.AWS_ACCESS_KEY_ID,
+secretAccessKey: env.AWS_SECRET_ACCESS_KEY
+}
 });
 
 // Read-only mount
 await sandbox.mountBucket('datasets', '/datasets', {
-	endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
-	readOnly: true
+endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+readOnly: true
 });
-```
+
+// Mount a subdirectory within the bucket
+await sandbox.mountBucket('shared-bucket', '/user-data', {
+endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+prefix: '/users/user-123'
+});
+
+````
 </TypeScriptExample>
 
 **Throws**:
@@ -79,9 +87,10 @@ Unmount a previously mounted bucket.
 
 ```ts
 await sandbox.unmountBucket(mountPath: string): Promise<void>
-```
+````
 
 **Parameters**:
+
 - `mountPath` - Path where the bucket is mounted (e.g., `"/data"`)
 
 <TypeScriptExample>
@@ -93,7 +102,8 @@ await sandbox.exec('python process.py');
 
 // Unmount
 await sandbox.unmountBucket('/data');
-```
+
+````
 </TypeScriptExample>
 
 :::note[Automatic cleanup]
@@ -112,9 +122,10 @@ interface MountBucketOptions {
 	provider?: BucketProvider;
 	credentials?: BucketCredentials;
 	readOnly?: boolean;
-	s3fsOptions?: Record<string, string>;
+	prefix?: string;
+	s3fsOptions?: string[];
 }
-```
+````
 
 **Fields**:
 
@@ -132,15 +143,19 @@ interface MountBucketOptions {
 - `readOnly` (optional) - Mount in read-only mode
   - Default: `false`
 
-- `s3fsOptions` (optional) - Advanced s3fs mount flags
-  - Example: `{ 'use_cache': '/tmp/cache' }`
+- `prefix` (optional) - Mount a subdirectory within the bucket
+  - Must start with `/` (e.g., `'/sessions/user123'` or `'/data/uploads/'`)
+  - Enables multi-tenant isolation within a single bucket
+
+- `s3fsOptions` (optional) - Advanced s3fs mount flags as string array
+  - Example: `['use_cache=/tmp/cache']`
 
 ### `BucketProvider`
 
 Storage provider hint for automatic s3fs flag optimization.
 
 ```ts
-type BucketProvider = 'r2' | 's3' | 'gcs';
+type BucketProvider = "r2" | "s3" | "gcs";
 ```
 
 - `'r2'` - Cloudflare R2 (recommended, applies `nomixupload` flag)

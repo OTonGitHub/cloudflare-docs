@@ -29,6 +29,7 @@ const response = await sandbox.exposePort(port: number, options: ExposePortOptio
 - `options`:
   - `hostname` - Your Worker's domain name (e.g., `'example.com'`). Required to construct preview URLs with wildcard subdomains like `https://8080-sandbox-abc123.example.com`. Cannot be a `.workers.dev` domain as it doesn't support wildcard DNS patterns.
   - `name` - Friendly name for the port (optional)
+  - `token` - Custom token for stable preview URLs (optional, 1-16 characters: lowercase letters, numbers, underscores). When provided, the preview URL remains consistent across container restarts and deployments.
 
 **Returns**: `Promise<ExposePortResponse>` with `port`, `url` (preview URL), `name`
 
@@ -40,8 +41,16 @@ const { hostname } = new URL(request.url);
 await sandbox.startProcess('python -m http.server 8000');
 const exposed = await sandbox.exposePort(8000, { hostname });
 
-console.log('Available at:', exposed.exposedAt);
-// https://8000-abc123.yourdomain.com
+console.log('Available at:', exposed.url);
+// https://8000-sandbox-id-abc123random.example.com
+
+// With custom token for stable URLs across restarts
+const stable = await sandbox.exposePort(8080, {
+hostname,
+token: 'my*service_v1' // 1-16 chars: a-z, 0-9, *
+});
+console.log('Stable URL:', stable.url);
+// https://8080-sandbox-id-my_service_v1.example.com
 
 // Multiple services with names
 await sandbox.startProcess('node api.js');
@@ -49,7 +58,8 @@ const api = await sandbox.exposePort(3000, { hostname, name: 'api' });
 
 await sandbox.startProcess('npm run dev');
 const frontend = await sandbox.exposePort(5173, { hostname, name: 'frontend' });
-```
+
+````
 </TypeScriptExample>
 
 :::note[Local development]
@@ -62,16 +72,14 @@ Remove an exposed port and close its preview URL.
 
 ```ts
 await sandbox.unexposePort(port: number): Promise<void>
-```
+````
 
 **Parameters**:
 
 - `port` - Port number to unexpose
 
 <TypeScriptExample>
-```ts
-await sandbox.unexposePort(8000);
-```
+	```ts await sandbox.unexposePort(8000); ```
 </TypeScriptExample>
 
 ### `getExposedPorts()`
@@ -91,7 +99,8 @@ const { ports } = await sandbox.getExposedPorts();
 for (const port of ports) {
 console.log(`${port.name || port.port}: ${port.exposedAt}`);
 }
-```
+
+````
 </TypeScriptExample>
 
 ### `wsConnect()`
@@ -106,7 +115,7 @@ For exposing WebSocket services via public preview URLs, use `exposePort()` with
 
 ```ts
 const response = await sandbox.wsConnect(request: Request, port: number): Promise<Response>
-```
+````
 
 **Parameters**:
 
@@ -129,8 +138,10 @@ export default {
     }
 
     return new Response('WebSocket endpoint', { status: 200 });
-  }
+
+}
 };
+
 ```
 </TypeScriptExample>
 
@@ -138,3 +149,4 @@ export default {
 
 - [Preview URLs concept](/sandbox/concepts/preview-urls/) - How preview URLs work
 - [Commands API](/sandbox/api/commands/) - Start background processes
+```

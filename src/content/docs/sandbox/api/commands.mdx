@@ -161,8 +161,10 @@ await sandbox.killProcess(processId: string, signal?: string): Promise<void>
 - `signal` - Signal to send (default: `"SIGTERM"`)
 
 <TypeScriptExample>
-	``` const server = await sandbox.startProcess('python -m http.server 8000');
-	await sandbox.killProcess(server.id); ```
+```
+const server = await sandbox.startProcess('python -m http.server 8000');
+await sandbox.killProcess(server.id);
+```
 </TypeScriptExample>
 
 ### `killAllProcesses()`
@@ -173,7 +175,11 @@ Terminate all running processes.
 await sandbox.killAllProcesses(): Promise<void>
 ```
 
-<TypeScriptExample>``` await sandbox.killAllProcesses(); ```</TypeScriptExample>
+<TypeScriptExample>
+```
+await sandbox.killAllProcesses();
+```
+</TypeScriptExample>
 
 ### `streamProcessLogs()`
 

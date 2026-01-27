@@ -1,18 +1,17 @@
 ---
-pcx_content_type: how-to
-title: Integrate Cloudflare Workflows
+title: Integrate Workflows with Agents
+pcx_content_type: navigation
 sidebar:
   order: 8
-description: Integrate Cloudflare Workflows with Agents for durable, multi-step background processing while Agents handle real-time communication
+description: Build durable, long-running background tasks by integrating Cloudflare Workflows with Agents
+
 ---
 
-import { Details, Render, PackageManagers, WranglerConfig, TypeScriptExample } from "~/components";
+import { TypeScriptExample, WranglerConfig, PackageManagers } from "~/components";
 
-Integrate [Cloudflare Workflows](/workflows/) with Agents for durable, multi-step background processing while Agents handle real-time communication and state management.
+Integrate [Cloudflare Workflows](/workflows/) with Agents for durable, multi-step background processing while Agents handle real-time communication. This guide shows you how to build workflows that communicate bidirectionally with Agents, report progress, handle approvals, and synchronize state.
 
-## Introduction
-
-### What are Cloudflare Workflows?
+## What are Cloudflare Workflows
 
 Cloudflare Workflows provide durable, multi-step execution that survives failures, retries automatically, and can pause to wait for external events. They are ideal for:
 
@@ -21,29 +20,29 @@ Cloudflare Workflows provide durable, multi-step execution that survives failure
 - Human-in-the-loop approval flows
 - Tasks that should not block user requests
 
-### Why integrate with Agents?
+## Why integrate with Agents
 
 Agents excel at real-time communication and state management, while Workflows excel at durable execution. Together they provide:
 
-| Feature                | Agent   | Workflow | Combined         |
-| ---------------------- | ------- | -------- | ---------------- |
-| Real-time WebSocket    | ✓       |          | Agent handles    |
-| Long-running tasks     | Limited | ✓        | Workflow handles |
-| State persistence      | ✓       | ✓        | Both             |
-| Automatic retries      |         | ✓        | Workflow handles |
-| External event waiting |         | ✓        | Workflow handles |
+| Feature | Agent | Workflow | Combined |
+| --- | --- | --- | --- |
+| Real-time WebSocket | Yes | No | Agent handles |
+| Long-running tasks | Limited | Yes | Workflow handles |
+| State persistence | Yes | Yes | Both |
+| Automatic retries | No | Yes | Workflow handles |
+| External event waiting | No | Yes | Workflow handles |
 
-### When to use what
+## When to use what
 
-| Use Case                      | Recommendation                 |
-| ----------------------------- | ------------------------------ |
-| Chat/messaging                | Agent only                     |
-| Quick API calls               | Agent only                     |
-| Background processing (< 30s) | Agent `queue()`                |
-| Long-running tasks (> 30s)    | Agent + Workflow               |
-| Multi-step pipelines          | Workflow                       |
-| Human approval flows          | Agent + Workflow               |
-| Scheduled tasks               | Agent `schedule()` or Workflow |
+| Use Case | Recommendation |
+| --- | --- |
+| Chat or messaging | Agent only |
+| Quick API calls | Agent only |
+| Background processing (less than 30 seconds) | Agent `queue()` |
+| Long-running tasks (more than 30 seconds) | Agent and Workflow |
+| Multi-step pipelines | Workflow |
+| Human approval flows | Agent and Workflow |
+| Scheduled tasks | Agent `schedule()` or Workflow |
 
 ## Prerequisites
 
@@ -51,14 +50,59 @@ Before you begin, you will need:
 
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up)
 - [Node.js](https://nodejs.org/) installed (v18 or later)
-- Familiarity with [Cloudflare Agents](/agents/)
-- Familiarity with [Cloudflare Workflows](/workflows/)
+- Basic understanding of [Agents](/agents/) and [Workflows](/workflows/)
 
-## 1. Define your Workflow
+## 1. Set up your project
 
-Create a Workflow that extends `AgentWorkflow` to get typed access to the originating Agent:
+Create a new project and install the required dependencies.
+
+<PackageManagers
+  type="create"
+  pkg="cloudflare@latest"
+  args={"my-workflow-agent"}
+/>
+
+Navigate into your project and install the Agents SDK:
+
+<PackageManagers pkg="agents" />
+
+## 2. Configure Wrangler
+
+Update your `wrangler.jsonc` to configure both your Agent and Workflow.
+
+<WranglerConfig>
+
+```jsonc
+{
+  "name": "my-app",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-02-11",
+  "durable_objects": {
+    "bindings": [
+      { "name": "MY_AGENT", "class_name": "MyAgent" }
+    ]
+  },
+  "workflows": [
+    {
+      "name": "processing-workflow",
+      "binding": "PROCESSING_WORKFLOW",
+      "class_name": "ProcessingWorkflow"
+    }
+  ],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["MyAgent"] }
+  ]
+}
+```
+
+</WranglerConfig>
+
+## 3. Define your Workflow
+
+Create a Workflow that extends `AgentWorkflow` to get typed access to the originating Agent.
 
 <TypeScriptExample>
+
 ```ts
 // src/workflows/processing.ts
 import { AgentWorkflow } from "agents";
@@ -109,21 +153,28 @@ export class ProcessingWorkflow extends AgentWorkflow<MyAgent, TaskParams> {
     return result;
   }
 }
+
+function processData(data: string) {
+  // Your processing logic here
+  return { processed: true, data };
+}
 ```
+
 </TypeScriptExample>
 
-## 2. Start Workflow from Agent
+## 4. Start Workflow from Agent
 
-Use `runWorkflow()` to start a workflow with automatic tracking:
+Use `runWorkflow()` to start a workflow with automatic tracking.
 
 <TypeScriptExample>
+
 ```ts
 // src/agent.ts
 import { Agent } from "agents";
 
 export class MyAgent extends Agent {
   async startTask(taskId: string, data: string) {
-    // Start workflow - automatically tracked in Agent database
+    // Start workflow - automatically tracked in Agent's database
     const workflowId = await this.runWorkflow(this.env.PROCESSING_WORKFLOW, {
       taskId,
       data
@@ -166,287 +217,21 @@ export class MyAgent extends Agent {
 
   // Method called by workflow via RPC
   async saveResult(taskId: string, result: unknown) {
-    this
-      .sql`INSERT INTO results (task_id, data) VALUES (${taskId}, ${JSON.stringify(result)})`;
+    this.sql`INSERT INTO results (task_id, data) VALUES (${taskId}, ${JSON.stringify(result)})`;
   }
 }
 ```
+
 </TypeScriptExample>
 
-## 3. Configure Wrangler
+## Common patterns
 
-Update your `wrangler.toml` or `wrangler.jsonc` to configure both your Agent and Workflows:
+### Background processing with progress
 
-<WranglerConfig>
-```jsonc
-{
-  "name": "my-app",
-  "main": "src/index.ts",
-  "compatibility_date": "2025-02-11",
-  "durable_objects": {
-    "bindings": [{ "name": "MY_AGENT", "class_name": "MyAgent" }]
-  },
-  "workflows": [
-    {
-      "name": "processing-workflow",
-      "binding": "PROCESSING_WORKFLOW",
-      "class_name": "ProcessingWorkflow"
-    }
-  ],
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MyAgent"] }]
-}
-```
-</WranglerConfig>
-
-## API Reference
-
-### AgentWorkflow
-
-Base class for Workflows that integrate with Agents.
-
-**Type Parameters:**
-
-- `AgentType` - The Agent class type (for typed RPC)
-- `Params` - User params passed to the workflow (optional)
-- `ProgressType` - Type for progress reporting (defaults to `DefaultProgress`)
-- `Env` - Environment type (defaults to `Cloudflare.Env`)
-
-**Properties:**
-
-- `agent` - Typed stub for calling Agent methods via RPC
-- `workflowId` - The workflow instance ID
-- `workflowName` - The workflow binding name
-- `env` - Environment bindings
-
-**Methods:**
-
-| Method                         | Description                                    |
-| ------------------------------ | ---------------------------------------------- |
-| `reportProgress(progress)`     | Report typed progress object to the Agent      |
-| `reportComplete(result?)`      | Report successful completion                   |
-| `reportError(error)`           | Report an error                                |
-| `sendEvent(event)`             | Send a custom event to the Agent               |
-| `broadcastToClients(message)`  | Broadcast message to all WebSocket clients     |
-| `fetchAgent(path, init?)`      | Make HTTP request to the Agent                 |
-| `getUserParams(event)`         | Extract user params (without internal params)  |
-| `waitForApproval(step, opts?)` | Wait for approval event (throws on rejection)  |
-| `updateAgentState(state)`      | Replace Agent state (broadcasts to clients)    |
-| `mergeAgentState(partial)`     | Merge into Agent state (broadcasts to clients) |
-
-**DefaultProgress Type:**
+Track progress as your workflow processes items.
 
 <TypeScriptExample>
-```ts
-type DefaultProgress = {
-  step?: string;
-  status?: "pending" | "running" | "complete" | "error";
-  message?: string;
-  percent?: number;
-  [key: string]: unknown; // extensible
-};
-```
-</TypeScriptExample>
 
-### Agent Workflow Methods
-
-Methods added to the `Agent` class for workflow integration:
-
-#### runWorkflow
-
-Start a workflow and track it in the Agent database.
-
-<TypeScriptExample>
-```ts
-const workflowId = await this.runWorkflow(
-  this.env.MY_WORKFLOW,
-  { taskId: "123", data: "process this" },
-  {
-    id: "custom-id", // optional - auto-generated if not provided
-    metadata: { userId: "user-456", priority: "high" } // optional - for querying
-  }
-);
-```
-</TypeScriptExample>
-
-**Parameters:**
-
-- `workflow` - Workflow binding from `env`
-- `params` - Params to pass to the workflow
-- `options.id` - Custom workflow ID (auto-generated if not provided)
-- `options.metadata` - Optional metadata stored for querying (not passed to workflow)
-
-**Returns:** Workflow instance ID
-
-#### sendWorkflowEvent
-
-Send an event to a running workflow.
-
-<TypeScriptExample>
-```ts
-await this.sendWorkflowEvent(this.env.MY_WORKFLOW, workflowId, {
-  type: "approval",
-  payload: { approved: true }
-});
-```
-</TypeScriptExample>
-
-#### getWorkflowStatus
-
-Get the status of a workflow and update tracking record.
-
-<TypeScriptExample>
-```ts
-const status = await this.getWorkflowStatus(this.env.MY_WORKFLOW, workflowId);
-// status: { status: 'running', output: null, error: null }
-```
-</TypeScriptExample>
-
-#### getWorkflow
-
-Get a tracked workflow by ID.
-
-<TypeScriptExample>
-```ts
-const workflow = this.getWorkflow(workflowId);
-// { workflowId, workflowName, status, metadata, error, createdAt, ... }
-```
-</TypeScriptExample>
-
-#### getWorkflows
-
-Query tracked workflows.
-
-<TypeScriptExample>
-```ts
-// Get all running workflows
-const running = this.getWorkflows({ status: "running" });
-
-// Get workflows by binding name
-const processing = this.getWorkflows({ workflowName: "PROCESSING_WORKFLOW" });
-
-// Filter by metadata
-const userWorkflows = this.getWorkflows({
-  metadata: { userId: "user-456" }
-});
-
-// Get recent completed workflows
-const recent = this.getWorkflows({
-  status: ["complete", "errored"],
-  limit: 10,
-  orderBy: "desc"
-});
-```
-</TypeScriptExample>
-
-### Lifecycle Callbacks
-
-Override these methods in your Agent to handle workflow events:
-
-<TypeScriptExample>
-```ts
-class MyAgent extends Agent {
-  // Called when workflow reports progress (progress is typed object)
-  async onWorkflowProgress(
-    workflowName: string,
-    workflowId: string,
-    progress: unknown
-  ) {
-    // Cast to your progress type
-    const p = progress as { step?: string; percent?: number };
-  }
-
-  // Called when workflow completes successfully
-  async onWorkflowComplete(
-    workflowName: string,
-    workflowId: string,
-    result?: unknown
-  ) {}
-
-  // Called when workflow encounters an error
-  async onWorkflowError(
-    workflowName: string,
-    workflowId: string,
-    error: string
-  ) {}
-
-  // Called when workflow sends a custom event
-  async onWorkflowEvent(
-    workflowName: string,
-    workflowId: string,
-    event: unknown
-  ) {}
-
-  // Handle all callbacks in one place (alternative)
-  async onWorkflowCallback(callback: WorkflowCallback) {
-    // Called for all callback types - callback includes workflowName
-  }
-}
-```
-</TypeScriptExample>
-
-### Approval Methods
-
-Convenience methods for human-in-the-loop approval flows:
-
-<TypeScriptExample>
-```ts
-class MyAgent extends Agent {
-  // Approve a waiting workflow
-  async handleApproval(workflowId: string, userId: string) {
-    await this.approveWorkflow(workflowId, {
-      reason: "Approved by admin",
-      metadata: { approvedBy: userId }
-    });
-  }
-
-  // Reject a waiting workflow
-  async handleRejection(workflowId: string, reason: string) {
-    await this.rejectWorkflow(workflowId, { reason });
-  }
-}
-```
-</TypeScriptExample>
-
-## Workflow Tracking
-
-Workflows started with `runWorkflow()` are automatically tracked in the Agent SQLite database.
-
-### cf_agents_workflows Table
-
-| Column          | Type    | Description                     |
-| --------------- | ------- | ------------------------------- |
-| `id`            | TEXT    | Internal row ID                 |
-| `workflow_id`   | TEXT    | Cloudflare workflow instance ID |
-| `workflow_name` | TEXT    | Workflow binding name           |
-| `status`        | TEXT    | Current status                  |
-| `metadata`      | TEXT    | JSON metadata (for querying)    |
-| `error_name`    | TEXT    | Error name (if failed)          |
-| `error_message` | TEXT    | Error message (if failed)       |
-| `created_at`    | INTEGER | Unix timestamp                  |
-| `updated_at`    | INTEGER | Unix timestamp                  |
-| `completed_at`  | INTEGER | Unix timestamp (when done)      |
-
-:::note
-
-Workflow params and output are not stored by default. Use `metadata` to store queryable information, and store large payloads in your own tables if needed.
-
-:::
-
-### Workflow Status Values
-
-- `queued` - Waiting to start
-- `running` - Currently executing
-- `paused` - Paused by user
-- `waiting` - Waiting for event
-- `complete` - Finished successfully
-- `errored` - Failed with error
-- `terminated` - Manually terminated
-
-## Patterns
-
-### Background Processing with Progress
-
-<TypeScriptExample>
 ```ts
 // Workflow with default progress type
 export class DataProcessingWorkflow extends AgentWorkflow<
@@ -497,11 +282,15 @@ class MyAgent extends Agent {
   }
 }
 ```
+
 </TypeScriptExample>
 
-### Human-in-the-Loop Approval
+### Human-in-the-loop approval
+
+Wait for human approval before proceeding with workflow steps.
 
 <TypeScriptExample>
+
 ```ts
 // Workflow using the built-in waitForApproval helper
 export class ApprovalWorkflow extends AgentWorkflow<MyAgent, RequestParams> {
@@ -551,11 +340,15 @@ class MyAgent extends Agent {
   }
 }
 ```
+
 </TypeScriptExample>
 
-### Durable Task Queue with Retries
+### Durable task queue with retries
+
+Build resilient workflows with automatic retry logic.
 
 <TypeScriptExample>
+
 ```ts
 // Workflow with built-in retry logic
 export class ResilientTaskWorkflow extends AgentWorkflow<MyAgent, TaskParams> {
@@ -594,13 +387,15 @@ export class ResilientTaskWorkflow extends AgentWorkflow<MyAgent, TaskParams> {
   }
 }
 ```
+
 </TypeScriptExample>
 
-### State Synchronization
+### State synchronization
 
-Workflows can update the Agent state directly, which automatically broadcasts to all connected clients:
+Workflows can update the Agent state directly, which automatically broadcasts to all connected clients.
 
 <TypeScriptExample>
+
 ```ts
 // Workflow that syncs state to Agent
 export class ProcessingWorkflow extends AgentWorkflow<MyAgent, TaskParams> {
@@ -637,13 +432,15 @@ export class ProcessingWorkflow extends AgentWorkflow<MyAgent, TaskParams> {
   }
 }
 ```
+
 </TypeScriptExample>
 
-### Custom Progress Types
+### Custom progress types
 
-Define custom progress types for domain-specific reporting:
+Define custom progress types for domain-specific reporting.
 
 <TypeScriptExample>
+
 ```ts
 // Custom progress type for data pipeline
 type PipelineProgress = {
@@ -673,7 +470,7 @@ export class ETLWorkflow extends AgentWorkflow<
       currentTable: "users"
     });
 
-    // ... processing
+    // Processing logic here
   }
 }
 
@@ -689,13 +486,17 @@ class MyAgent extends Agent {
   }
 }
 ```
+
 </TypeScriptExample>
 
-## Bidirectional Communication
+## Bidirectional communication
 
 ### Workflow to Agent
 
+Workflows can communicate with Agents in multiple ways:
+
 <TypeScriptExample>
+
 ```ts
 // Direct RPC call (typed)
 await this.agent.updateTaskStatus(taskId, "processing");
@@ -724,11 +525,15 @@ await this.mergeAgentState({ progress: 0.5 });
 // Broadcast to WebSocket clients
 await this.broadcastToClients({ type: "update", data });
 ```
+
 </TypeScriptExample>
 
 ### Agent to Workflow
 
+Agents can send events to running workflows:
+
 <TypeScriptExample>
+
 ```ts
 // Send event to waiting workflow (generic)
 await this.sendWorkflowEvent(this.env.MY_WORKFLOW, workflowId, {
@@ -736,7 +541,7 @@ await this.sendWorkflowEvent(this.env.MY_WORKFLOW, workflowId, {
   payload: { action: "proceed" }
 });
 
-// Approve/reject workflows using convenience methods
+// Approve or reject workflows using convenience methods
 await this.approveWorkflow(workflowId, {
   reason: "Approved by admin",
   metadata: { approvedBy: userId }
@@ -749,15 +554,91 @@ await this.rejectWorkflow(workflowId, {
 // The workflow waits for approval with:
 const approvalData = await this.waitForApproval(step, { timeout: "7 days" });
 ```
+
 </TypeScriptExample>
 
-## Best Practices
+## Managing workflows
 
-1. **Keep workflows focused** - One workflow per logical task
-2. **Use meaningful step names** - Helps with debugging and observability
-3. **Report progress regularly** - Keeps users informed
-4. **Handle errors gracefully** - Use `reportError()` before throwing
-5. **Clean up completed workflows** - Query and delete old records periodically
+### Query workflows
+
+Query tracked workflows with filters.
+
+<TypeScriptExample>
+
+```ts
+// Get all running workflows
+const running = this.getWorkflows({ status: "running" });
+
+// Get workflows by binding name
+const processing = this.getWorkflows({ workflowName: "PROCESSING_WORKFLOW" });
+
+// Filter by metadata
+const userWorkflows = this.getWorkflows({
+  metadata: { userId: "user-456" }
+});
+
+// Get recent completed workflows
+const recent = this.getWorkflows({
+  status: ["complete", "errored"],
+  limit: 10,
+  orderBy: "desc"
+});
+```
+
+</TypeScriptExample>
+
+### Clean up workflows
+
+Implement retention policies to prevent unbounded growth of the workflows table.
+
+<TypeScriptExample>
+
+```ts
+// Option 1: Cleanup immediately on completion
+async onWorkflowComplete(workflowName, workflowId, result) {
+  // Process result first, then delete
+  this.deleteWorkflow(workflowId);
+}
+
+// Option 2: Scheduled cleanup (keep recent history)
+// Call this periodically via a scheduled task or cron
+this.deleteWorkflows({
+  status: ["complete", "errored"],
+  olderThan: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // 7 days
+});
+
+// Option 3: Keep all history for compliance or auditing
+// Do not call deleteWorkflows() - query historical data as needed
+```
+
+</TypeScriptExample>
+
+## Best practices
+
+### Design workflows
+
+- **Keep workflows focused** - One workflow per logical task
+- **Use meaningful step names** - Helps with debugging and observability
+- **Report progress regularly** - Keeps users informed
+- **Handle errors gracefully** - Use `reportError()` before throwing
+
+### Manage state
+
+- **Use metadata for queryable fields** - Store searchable data in metadata
+- **Store large payloads separately** - Use your own tables for large data
+- **Clean up completed workflows** - Implement retention policies
+
+### Handle failures
+
+- **Use step retries** - Configure automatic retries for transient failures
+- **Set appropriate timeouts** - Prevent workflows from hanging indefinitely
+- **Report errors to Agent** - Use `reportError()` to notify the Agent
+
+### Monitor workflows
+
+- **Track workflow status** - Use `getWorkflows()` to monitor active workflows
+- **Log lifecycle events** - Override lifecycle callbacks for observability
+- **Set up alerts** - Monitor for long-running or failed workflows
 
 ## Limitations
 
@@ -767,8 +648,9 @@ const approvalData = await this.waitForApproval(step, { timeout: "7 days" });
 - No direct WebSocket from workflows (use `broadcastToClients()`)
 - Workflow execution time: up to 15 minutes per step
 
-## Related Resources
+## Related resources
 
-- [Cloudflare Workflows](/workflows/)
-- [Agent Class Reference](/agents/concepts/agent-class/)
-- [Human-in-the-Loop Agent Guide](/agents/guides/human-in-the-loop/)
+- [Workflows API Reference](/agents/api-reference/run-workflows/) - Complete API documentation
+- [Cloudflare Workflows documentation](/workflows/) - Learn more about Workflows
+- [Schedule tasks](/agents/api-reference/schedule-tasks/) - Schedule tasks within an Agent
+- [Human-in-the-loop guide](/agents/guides/human-in-the-loop/) - Build approval workflows

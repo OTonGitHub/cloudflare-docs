@@ -12,6 +12,12 @@ Agents can trigger asynchronous [Workflows](/workflows/), allowing your Agent to
 
 Because an Agent is just like a Worker script, it can create Workflows defined in the same project (script) as the Agent _or_ in a different project.
 
+:::note[Deep Workflows Integration]
+
+For advanced integration between Agents and Workflows, including bidirectional communication, automatic tracking, approval flows, and state synchronization, refer to the [Cloudflare Workflows Integration Guide](/agents/guides/cloudflare-workflows/). The guide covers the `AgentWorkflow` base class and workflow lifecycle management.
+
+:::
+
 :::note[Agents vs. Workflows]
 
 Agents and Workflows have some similarities: they can both run tasks asynchronously. For straightforward tasks that are linear or need to run to completion, a Workflow can be ideal: steps can be retried, they can be cancelled, and can act on events.

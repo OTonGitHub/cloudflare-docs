@@ -11,6 +11,12 @@ import { Render } from "~/components";
 
 A workflow is the orchestration layer that coordinates how an agent's components work together. It defines the structured paths through which tasks are processed, tools are called, and results are managed. While agents make dynamic decisions about what to do, workflows provide the underlying framework that governs how those decisions are executed.
 
+:::note[Cloudflare Workflows Integration]
+
+This page explains the conceptual role of workflows in agent architecture. For information on integrating Agents with [Cloudflare Workflows](/workflows/) (the product) for durable execution, automatic retries, and long-running tasks, refer to the [Cloudflare Workflows Integration Guide](/agents/guides/cloudflare-workflows/).
+
+:::
+
 ### Understanding workflows in agent systems
 
 Think of a workflow like the operating procedures of a company. The company (agent) can make various decisions, but how those decisions get implemented follows established processes (workflows). For example, when you book a flight through a travel agent, they might make different decisions about which flights to recommend, but the process of actually booking the flight follows a fixed sequence of steps.
